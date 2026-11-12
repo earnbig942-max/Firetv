@@ -12,38 +12,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Find and extract project ZIP
+        run: |
+          ZIP_FILE=$(find . -maxdepth 1 -name '*.zip' -print -quit)
+          test -n "$ZIP_FILE"
+          mkdir project
+          unzip -q "$ZIP_FILE" -d project
+          PROJECT_DIR=$(dirname "$(find project -name settings.gradle.kts -print -quit)")
+          test -n "$PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.9'
 
-      - name: Extract project ZIP
-        run: |
-          mkdir project
-          ZIP_FILE=$(find . -maxdepth 1 -name '*.zip' | head -n 1)
-          if [ -z "$ZIP_FILE" ]; then
-            echo "Project ZIP not found"
-            exit 1
-          fi
-          unzip -q "$ZIP_FILE" -d project
-          test -f project/settings.gradle.kts
-
-      - name: Generate Gradle Wrapper
-        working-directory: project
-        run: gradle wrapper --gradle-version 8.9 --distribution-type bin
-
       - name: Build APK
-        working-directory: project
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          gradle wrapper --gradle-version 8.9
           chmod +x gradlew
           ./gradlew :firetv-player:app:assembleDebug
 
@@ -51,4 +47,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: FireTV-APK
-          path: project/firetv-player/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROJECT_DIR }}/firetv-player/app/build/outputs/apk/debug/app-debug.apk
